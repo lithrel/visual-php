@@ -11047,6 +11047,10 @@ var $author$project$Main$init = function (_v0) {
 		{
 			dragging: $elm$core$Maybe$Nothing,
 			functions: $krisajenkins$remotedata$RemoteData$Loading,
+			links: _List_fromArray(
+				[
+					_Utils_Tuple2('add', 'multiply')
+				]),
 			pointerPos: _Utils_Tuple2(0, 0),
 			pointerPosOnDown: $elm$core$Maybe$Nothing,
 			positions: _List_Nil,
@@ -11281,12 +11285,13 @@ var $author$project$Main$getPosOf = F2(
 	});
 var $author$project$Main$initPositions = function (functions) {
 	return A2(
-		$elm$core$List$map,
-		function (f) {
-			return _Utils_Tuple2(
-				f.name,
-				A2($author$project$Main$getPosOf, f.name, _List_Nil));
-		},
+		$elm$core$List$indexedMap,
+		F2(
+			function (i, f) {
+				return _Utils_Tuple2(
+					f.name,
+					_Utils_Tuple2(35 * i, 40 * i));
+			}),
 		functions);
 };
 var $author$project$Main$relativePosTo = F2(
@@ -11561,6 +11566,49 @@ var $mpizenberg$elm_pointer_events$Html$Events$Extra$Pointer$onUp = A2($mpizenbe
 var $elm$svg$Svg$trustedNode = _VirtualDom_nodeNS('http://www.w3.org/2000/svg');
 var $elm$svg$Svg$svg = $elm$svg$Svg$trustedNode('svg');
 var $elm$svg$Svg$Attributes$viewBox = _VirtualDom_attribute('viewBox');
+var $author$project$Main$getInputPosOf = F2(
+	function (name, positions) {
+		var pos = A2($author$project$Main$getPosOf, name, positions);
+		return _Utils_Tuple2(pos.a + 175, pos.b);
+	});
+var $author$project$Main$getOutputPosOf = F2(
+	function (name, positions) {
+		var pos = A2($author$project$Main$getPosOf, name, positions);
+		return _Utils_Tuple2(pos.a + 175, (pos.b + 150) - 20);
+	});
+var $elm$svg$Svg$Attributes$d = _VirtualDom_attribute('d');
+var $elm$svg$Svg$path = $elm$svg$Svg$trustedNode('path');
+var $elm$svg$Svg$Attributes$stroke = _VirtualDom_attribute('stroke');
+var $elm$svg$Svg$Attributes$strokeWidth = _VirtualDom_attribute('stroke-width');
+var $author$project$Main$lineFromTo = F2(
+	function (a, b) {
+		var posB = $elm$core$String$fromFloat(b.a) + (',' + $elm$core$String$fromFloat(b.b));
+		var posA = $elm$core$String$fromFloat(a.a) + (',' + $elm$core$String$fromFloat(a.b));
+		return A2(
+			$elm$svg$Svg$path,
+			_List_fromArray(
+				[
+					$elm$svg$Svg$Attributes$d('M ' + (posA + (' L ' + posB))),
+					$elm$svg$Svg$Attributes$stroke('black'),
+					$elm$svg$Svg$Attributes$strokeWidth('1')
+				]),
+			_List_Nil);
+	});
+var $author$project$Main$viewLink = F2(
+	function (link, positions) {
+		var posB = A2($author$project$Main$getInputPosOf, link.b, positions);
+		var posA = A2($author$project$Main$getOutputPosOf, link.a, positions);
+		return A2($author$project$Main$lineFromTo, posA, posB);
+	});
+var $author$project$Main$viewConnections = F2(
+	function (links, positions) {
+		return A2(
+			$elm$core$List$map,
+			function (l) {
+				return A2($author$project$Main$viewLink, l, positions);
+			},
+			links);
+	});
 var $author$project$Main$PointerDownMsg = F2(
 	function (a, b) {
 		return {$: 'PointerDownMsg', a: a, b: b};
@@ -11628,7 +11676,8 @@ var $author$project$Main$viewFunction = F2(
 							$mpizenberg$elm_pointer_events$Html$Events$Extra$Pointer$onOut(
 							function (_v1) {
 								return $author$project$Main$PointerOutMsg;
-							})
+							}),
+							A2($elm$html$Html$Attributes$attribute, 'style', 'border: 1px dashed #999; padding: 0 3px; background: white')
 						]),
 					_List_fromArray(
 						[
@@ -11643,7 +11692,7 @@ var $author$project$Main$viewFunction = F2(
 							$elm$html$Html$p,
 							_List_fromArray(
 								[
-									A2($elm$html$Html$Attributes$attribute, 'style', 'white-space: pre')
+									A2($elm$html$Html$Attributes$attribute, 'style', 'white-space: pre; font-size: 0.8em; color: #AAA')
 								]),
 							_List_fromArray(
 								[
@@ -11652,8 +11701,8 @@ var $author$project$Main$viewFunction = F2(
 						]))
 				]));
 	});
-var $author$project$Main$viewFunctions = F2(
-	function (functions, positions) {
+var $author$project$Main$viewFunctions = F3(
+	function (functions, positions, links) {
 		return A2(
 			$elm$html$Html$div,
 			_List_fromArray(
@@ -11673,12 +11722,17 @@ var $author$project$Main$viewFunctions = F2(
 							$elm$svg$Svg$Attributes$height('600'),
 							$elm$svg$Svg$Attributes$viewBox('0 0 800 600')
 						]),
-					A2(
-						$elm$core$List$map,
-						function (f) {
-							return A2($author$project$Main$viewFunction, f, positions);
-						},
-						functions))
+					$elm$core$List$concat(
+						_List_fromArray(
+							[
+								A2($author$project$Main$viewConnections, links, positions),
+								A2(
+								$elm$core$List$map,
+								function (f) {
+									return A2($author$project$Main$viewFunction, f, positions);
+								},
+								functions)
+							])))
 				]));
 	});
 var $author$project$Main$viewFunctionsOrError = function (model) {
@@ -11690,7 +11744,7 @@ var $author$project$Main$viewFunctionsOrError = function (model) {
 			return $elm$html$Html$text('Loading...');
 		case 'Success':
 			var functions = _v0.a;
-			return A2($author$project$Main$viewFunctions, functions, model.positions);
+			return A3($author$project$Main$viewFunctions, functions, model.positions, model.links);
 		default:
 			var httpError = _v0.a;
 			return $elm$html$Html$text(

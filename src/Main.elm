@@ -8,8 +8,19 @@ import Json.Decode as Decode exposing (Decoder, int, string, float, list)
 import Json.Decode.Pipeline exposing (required, optional, hardcoded)
 import RemoteData exposing (RemoteData, WebData)
 import Http
-import Svg exposing (Svg, svg, rect, foreignObject)
-import Svg.Attributes exposing (height, width, viewBox, x, y, fill, id)
+import Svg exposing (Svg, svg, rect, foreignObject, path)
+import Svg.Attributes exposing 
+    ( height
+    , width
+    , viewBox
+    , x
+    , y
+    , fill
+    , id
+    , d
+    , stroke
+    , strokeWidth
+    )
 import Svg.Events
 import Html.Events.Extra.Mouse as Mouse
 import Html.Events.Extra.Pointer as Pointer
@@ -30,6 +41,14 @@ type alias Position =
 type alias FunctionPosition =
     (String, Position)
 
+type alias Link =
+    (String, String) -- Output Box - Input Box
+
+type alias FuncInput =
+    { name_: String
+    , type_: String
+    }
+
 type alias Model =
     { functions : WebData (List Function)
     , dragging : Maybe String
@@ -37,7 +56,10 @@ type alias Model =
     , pointerPos : Position
     , pointerPosOnDown : Maybe Position
     , relPointerPosOnDown : Maybe Position
+    , links : List Link
+    , inputs : List FuncInput
     }
+
 
 init : () -> (Model, Cmd Msg)
 init _ =
@@ -48,9 +70,15 @@ init _ =
         , pointerPos = (0,0)
         , pointerPosOnDown = Nothing
         , relPointerPosOnDown = Nothing
+        , links = [("add", "multiply")]
+        , inputs = 
+            [ {name_ = "Int", type_ = "int"}
+            , {name_ = "String", type_ = "string"}
+            ]
         }
         , fetchFunctions 
     )
+
 
 fetchFunctions : Cmd Msg
 fetchFunctions =
@@ -126,8 +154,8 @@ relativePosTo posA posB =
 
 initPositions : List Function -> List FunctionPosition
 initPositions functions =
-    List.map 
-        (\f -> (f.name, getPosOf f.name []) )
+    List.indexedMap 
+        (\i f -> (f.name, (toFloat (35 * i), toFloat (40 * i))) )
         functions
 
 updatePositions : Model -> Position -> List FunctionPosition
@@ -151,6 +179,21 @@ defineNewPosition name model pointerPos =
             )
     else
         getPosOf name model.positions
+
+getInputPosOf : String -> List FunctionPosition -> Position
+getInputPosOf name positions =
+    let 
+        pos = getPosOf name positions
+    in
+        (Tuple.first pos + 175, Tuple.second pos)
+
+getOutputPosOf : String -> List FunctionPosition -> Position
+getOutputPosOf name positions =
+    let 
+        pos = getPosOf name positions
+    in
+        (Tuple.first pos + 175, Tuple.second pos + 150 - 20) -- don't ask
+
 
 getPosOf : String -> List FunctionPosition -> Position
 getPosOf name positions =
@@ -196,18 +239,32 @@ viewFunctionsOrError model =
             text "Loading..."
 
         RemoteData.Success functions ->
-            viewFunctions functions model.positions
+            viewFunctions functions model.positions model.links
 
         RemoteData.Failure httpError ->
             text (buildErrorMessage httpError)
 
-viewFunctions : List Function -> List FunctionPosition -> Html Msg
-viewFunctions functions positions = 
+viewFunctions : List Function -> List FunctionPosition -> List Link -> Html Msg
+viewFunctions functions positions links = 
     div [ Pointer.onUp (\_ -> PointerUpMsg) ] 
         [ svg [ width "100%", height "600", viewBox "0 0 800 600" ] 
-            (List.map (\f -> viewFunction f positions) functions)
+            (List.concat
+                [ viewConnections links positions
+                , List.map (\f -> viewFunction f positions) functions
+                ])
         ]
         
+viewConnections : List Link -> List FunctionPosition -> List (Svg msg)
+viewConnections links positions =
+    List.map (\l -> viewLink l positions) links
+
+viewLink : Link -> List FunctionPosition -> Svg msg
+viewLink link positions =
+    let
+        posA = getOutputPosOf (Tuple.first link) positions
+        posB = getInputPosOf (Tuple.second link) positions
+    in
+        lineFromTo posA posB
 
 viewFunction : Function -> List FunctionPosition -> Svg Msg
 viewFunction function positions = 
@@ -232,9 +289,10 @@ viewFunction function positions =
                 , Pointer.onUp (\_ -> PointerUpMsg)
                 , Pointer.onMove (\ev -> PointerMoveMsg ev.pointer.clientPos)
                 , Pointer.onOut (\_ -> PointerOutMsg)
+                , attribute "style" "border: 1px dashed #999; padding: 0 3px; background: white"
                 ] 
                 [ p [] [ text declaration ]
-                , p [ attribute "style" "white-space: pre" ] [ text function.source ]
+                , p [ attribute "style" "white-space: pre; font-size: 0.8em; color: #AAA" ] [ text function.source ]
                 ]
             ]
 
@@ -242,6 +300,17 @@ functionContainerId : String -> String
 functionContainerId id =
     "cont-" ++ id
 
+lineFromTo : Position -> Position -> Svg msg
+lineFromTo a b =
+    let
+        posA = String.fromFloat (Tuple.first a)
+            ++ "," ++ String.fromFloat (Tuple.second a)
+        posB = String.fromFloat (Tuple.first b)
+            ++ "," ++ String.fromFloat (Tuple.second b)
+    in
+        path
+            [ d ("M " ++ posA ++ " L " ++ posB), stroke "black", strokeWidth "1" ]
+            []
 
 type alias Function =
     { name : String
